@@ -401,3 +401,90 @@ FROM
     returns r
 ORDER BY
     amount DESC;
+
+
+-- 8. Combine customer-order and customer-return info
+
+SELECT 
+    c.name AS customer_name, 
+    o.order_id, 
+    o.total_amount, 
+    'Order' AS transaction_type
+FROM
+    customers c
+JOIN
+    orders o ON c.customer_id = o.customer_id
+UNION
+SELECT 
+    c.name AS customer_name, 
+    r.return_id, 
+    r.refund_amount, 
+    'Return' AS transaction_type
+FROM
+    customers c
+JOIN
+    returns r ON c.customer_id = (
+        SELECT o.customer_id 
+        FROM orders o 
+        WHERE o.order_id = r.order_id
+    )
+ORDER BY
+    customer_name, 
+    transaction_type;
+
+-- 9. Unified report of transactions with common column names
+
+SELECT 
+    c.name AS customer_name, 
+    o.order_id AS transaction_id, 
+    o.total_amount AS amount, 
+    o.order_date AS transaction_date, 
+    'Order' AS transaction_type
+FROM
+    customers c
+JOIN
+    orders o ON c.customer_id = o.customer_id
+UNION ALL
+SELECT 
+    c.name AS customer_name, 
+    r.return_id AS transaction_id, 
+    r.refund_amount AS amount, 
+    r.return_date AS transaction_date, 
+    'Return' AS transaction_type
+FROM
+    customers c
+JOIN
+    returns r ON c.customer_id = (
+        SELECT o.customer_id 
+        FROM orders o 
+        WHERE o.order_id = r.order_id
+    )
+ORDER BY
+    customer_name, 
+    transaction_date;
+
+
+--10. 5 latest transactions (orders and returns) using UNION and LIMIT
+-- Limit is not standard SQL, so we use ROWNUM in Oracle
+SELECT *
+FROM (
+    SELECT 
+        order_id AS transaction_id,
+        order_date AS transaction_date,
+        total_amount AS amount,
+        'ORDER' AS transaction_type
+    FROM orders
+
+    UNION
+
+    SELECT 
+        order_id AS transaction_id,
+        return_date AS transaction_date,
+        refund_amount AS amount,
+        'RETURN' AS transaction_type
+    FROM returns
+
+    ORDER BY transaction_date DESC
+)
+WHERE ROWNUM <= 5;
+
