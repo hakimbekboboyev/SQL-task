@@ -50,6 +50,7 @@ INSERT INTO customers (customer_id, name, referred_by) VALUES (8, 'Rustam Sobiro
 INSERT INTO customers (customer_id, name, referred_by) VALUES (9, 'Malika Tursunova', 4);
 INSERT INTO customers (customer_id, name, referred_by) VALUES (10, 'Sherzod Qodirov', 2);
 INSERT INTO customers (customer_id, name, referred_by) VALUES (11, 'Hakimbek Boboyev', 2);
+INSERT INTO customers (customer_id, name, referred_by) VALUES (12, 'Sardor Sadullayev', 11);
 
 -- Insert sample data into Orders table
 
@@ -67,6 +68,8 @@ INSERT INTO orders (order_id, customer_id, branch_id, order_date, total_amount) 
 INSERT INTO orders (order_id, customer_id, branch_id, order_date, total_amount) VALUES (111, 8, 8, DATE '2025-02-25', 220.25);
 INSERT INTO orders (order_id, customer_id, branch_id, order_date, total_amount) VALUES (112, 1, 9, DATE '2025-03-01', 310.00);
 INSERT INTO orders (order_id, customer_id, branch_id, order_date, total_amount) VALUES (113, 11, 10, DATE '2025-03-05', 880.88);
+INSERT INTO orders (order_id, customer_id, branch_id, order_date, total_amount) VALUES (115, 10, 10, DATE '2024-03-05', 235.5);
+
 -- Insert sample data into Returns table
 
 INSERT INTO returns (return_id, order_id, return_date, refund_amount) VALUES (201, 102, DATE '2025-01-20', 75.00);
@@ -79,11 +82,14 @@ INSERT INTO returns (return_id, order_id, return_date, refund_amount) VALUES (20
 INSERT INTO returns (return_id, order_id, return_date, refund_amount) VALUES (208, 105, DATE '2025-02-12', 30.00);
 INSERT INTO returns (return_id, order_id, return_date, refund_amount) VALUES (209, 103, DATE '2025-02-03', 50.00);
 INSERT INTO returns (return_id, order_id, return_date, refund_amount) VALUES (210, 107, DATE '2025-02-22', 75.00);
+INSERT INTO returns (return_id, order_id, return_date, refund_amount) VALUES (211, 115, DATE '2025-02-22', 75.00);
 
 SELECT * FROM customers;
 SELECT * FROM orders;
 SELECT * FROM returns;
 SELECT * FROM branches;
+
+-- 🔗 JOIN TASKS
 
 -- 1. Retrieve all customers who placed orders with order date and total amount
 
@@ -168,3 +174,230 @@ SELECT
 FROM branches b
 JOIN orders o ON b.branch_id = o.branch_id
 GROUP BY b.branch_name;
+
+-- 📊 GROUP BY TASKS
+
+-- 1. Total number of orders per customer
+SELECT c.name AS customer_name, COUNT(o.order_id) AS total_orders
+FROM customers c 
+LEFT JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY c.name;
+
+-- 2. Total sales per branch
+SELECT b.branch_name, SUM(o.total_amount) AS total_sales
+FROM branches b 
+LEFT JOIN orders o ON b.branch_id = o.branch_id
+GROUP BY b.branch_name;
+
+-- 3. Average order amount per customer
+SELECT c.name AS customer_name, AVG(o.total_amount) AS average_order_amount
+FROM customers c
+LEFT JOIN orders o ON c.customer_id = o.customer_id
+GROUP BY c.name;
+
+-- 4. Branches with more than 5 orders
+
+SELECT b.branch_name, COUNT(o.order_id) AS order_count
+FROM branches b
+JOIN orders o ON b.branch_id = o.branch_id
+GROUP BY b.branch_name
+HAVING COUNT(o.order_id) > 1;
+
+-- 5. Orders count per month
+
+SELECT 
+    EXTRACT(YEAR FROM o.order_date) AS order_year,
+    EXTRACT(MONTH FROM o.order_date) AS order_month,
+    COUNT(o.order_id) AS total_orders
+FROM orders o
+GROUP BY 
+    EXTRACT(YEAR FROM o.order_date), 
+    EXTRACT(MONTH FROM o.order_date) 
+ORDER BY
+    order_year, 
+    order_month;
+
+-- 6. Total sales per customer per branch
+SELECT 
+    c.name AS customer_name, 
+    b.branch_name, 
+    SUM(o.total_amount) AS total_sales
+FROM customers c
+JOIN orders o ON c.customer_id = o.customer_id
+JOIN branches b ON o.branch_id = b.branch_id
+GROUP BY 
+    c.name, 
+    b.branch_name;
+
+-- 7. Min/max order amount per branch
+
+SELECT 
+    b.branch_name, 
+    MIN(o.total_amount) AS min_order_amount, 
+    MAX(o.total_amount) AS max_order_amount
+FROM branches b
+JOIN orders o ON b.branch_id = o.branch_id
+GROUP BY 
+    b.branch_name;
+
+
+-- 8. Total revenue per branch (with JOIN)
+SELECT 
+    b.branch_name, 
+    SUM(o.total_amount) AS total_revenue
+FROM branches b
+JOIN orders o ON b.branch_id = o.branch_id
+GROUP BY 
+    b.branch_name;
+
+-- 9. Daily orders per branch
+
+SELECT 
+    b.branch_name, 
+    o.order_date, 
+    COUNT(o.order_id) AS daily_order_count
+FROM branches b
+JOIN orders o ON b.branch_id = o.branch_id
+GROUP BY 
+    b.branch_name, 
+    o.order_date;
+
+--10. Count high-value orders (> $1000) per branch using CASE
+SELECT 
+    b.branch_name, 
+    COUNT(CASE WHEN o.total_amount > 500 THEN o.order_id END) AS high_value_order_count
+FROM branches b
+JOIN orders o ON b.branch_id = o.branch_id
+GROUP BY 
+    b.branch_name;
+
+-- 🔀 UNION TASKS
+
+-- 1. Combine customers who placed orders and who made returns
+SELECT c.name AS customer_name, 'Placed Order' AS activity_type
+FROM customers c
+JOIN orders o ON c.customer_id = o.customer_id
+UNION
+SELECT c.name AS customer_name, 'Made Return' AS activity_type
+FROM customers c
+JOIN returns r ON c.customer_id = (SELECT o.customer_id FROM orders o WHERE o.order_id = r.order_id)
+UNION
+SELECT c.name AS customer_name, 'No Activity' AS activity_type
+FROM customers c
+WHERE c.customer_id NOT IN (SELECT o.customer_id FROM orders o)
+  AND c.customer_id NOT IN (SELECT r.order_id FROM returns r)
+ORDER BY customer_name;
+
+-- 2. Same as above but include duplicates (UNION ALL)
+
+SELECT c.name AS customer_name, 'Placed Order' AS activity_type
+FROM customers c
+JOIN orders o ON c.customer_id = o.customer_id
+UNION ALL
+SELECT c.name AS customer_name, 'Made Return' AS activity_type
+FROM customers c
+JOIN returns r ON c.customer_id = (SELECT o.customer_id FROM orders o WHERE o.order_id = r.order_id)
+UNION ALL
+SELECT c.name AS customer_name, 'No Activity' AS activity_type
+FROM customers c
+WHERE c.customer_id NOT IN (SELECT o.customer_id FROM orders o)
+  AND c.customer_id NOT IN (SELECT r.order_id FROM returns r)
+ORDER BY customer_name;
+
+
+-- 3. Customers who ordered in 2024 and returned in 2025
+
+SELECT 
+    c.name AS customer_name, 
+    o.order_date AS order_date
+FROM 
+    customers c
+JOIN 
+    orders o ON c.customer_id = o.customer_id
+WHERE 
+    EXTRACT(YEAR FROM o.order_date) = 2024
+
+UNION ALL
+
+SELECT 
+    c.name AS customer_name, 
+    r.return_date AS order_date
+FROM 
+    customers c
+JOIN 
+    returns r ON c.customer_id = (
+        SELECT o.customer_id 
+        FROM orders o 
+        WHERE o.order_id = r.return_id
+    )
+WHERE 
+    EXTRACT(YEAR FROM r.return_date) = 2025;
+
+
+-- 4. Combine "Active" and "Inactive" customers with label
+
+SELECT 
+    c.name AS customer_name, 
+    'Active' AS status
+FROM
+    customers c
+JOIN
+    orders o ON c.customer_id = o.customer_id
+UNION ALL
+SELECT 
+    c.name AS customer_name, 
+    'Inactive' AS status
+FROM
+    customers c
+WHERE 
+    c.customer_id NOT IN (SELECT o.customer_id FROM orders o);
+
+
+-- 5. Combine and sort all transaction dates (orders + returns)
+
+SELECT 
+    o.order_date AS transaction_date, 
+    'Order' AS transaction_type
+FROM
+    orders o
+UNION ALL
+SELECT 
+    r.return_date AS transaction_date, 
+    'Return' AS transaction_type
+FROM
+    returns r
+ORDER BY
+    transaction_date;
+
+
+-- 6. Combine branch IDs from orders and returns
+SELECT 
+    o.branch_id, 
+    'Order' AS transaction_type
+FROM
+    orders o
+UNION
+SELECT 
+    o.branch_id, 
+    'Return' AS transaction_type
+FROM
+    returns r, orders o WHERE r.order_id = o.order_id
+ORDER BY
+    branch_id;
+
+-- 7. Total order and refund amount with label column
+SELECT 
+    o.order_id, 
+    o.total_amount AS amount, 
+    'Order' AS transaction_type
+FROM
+    orders o
+UNION ALL
+SELECT 
+    r.return_id, 
+    r.refund_amount AS amount, 
+    'Refund' AS transaction_type
+FROM
+    returns r
+ORDER BY
+    amount DESC;
